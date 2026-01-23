@@ -1,0 +1,1 @@
+void send_html(int client_socket, const char *file_path);
