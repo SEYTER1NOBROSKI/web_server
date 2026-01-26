@@ -46,6 +46,12 @@ void send_error_html(int client_socket, const char *file_path, long http_code) {
 		case 503:
 			http_header = "HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/html\r\n\r\n";
 			break;
+		case 201:
+			http_header = "HTTP/1.1 201 Created\r\nContent-Type: text/html\r\n\r\n";
+			break;
+		case 204:
+			http_header = "HTTP/1.1 204 No Content\r\nContent-Type: text/html\r\n\r\n";
+			break;
 		default:
 			http_header = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html\r\n\r\n";
 			break;
@@ -82,5 +88,9 @@ void handle_client_response(int client_socket, long http_code, struct MemoryStru
 		send_error_html(client_socket, "file/501.html", 501);
 	} else if (http_code == 503) {
 		send_error_html(client_socket, "file/503.html", 503);
+	} else if (http_code == 201) {
+		send_html(client_socket, "file/201.html");
+	} else if (http_code == 204) {
+		send_html(client_socket, "file/204.html");
 	}
 }

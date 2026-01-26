@@ -61,6 +61,7 @@ int setup_server() {
 
 	while (1) {
 		event_count = epoll_wait(epoll_fd, events, MAX_CONNECTIONS, -1);
+		printf("Epoll wait returned %d\n", event_count);
 		for (int i = 0; i < event_count; i++) {
 			if (events[i].data.fd == server_socket) {
 				client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
@@ -93,6 +94,10 @@ int setup_server() {
 						http_get("https://httpbin.org/status/400", client_fd);
 					} else if (strcmp(path, "/broken-link") == 0) {
 						http_get("https://httpbin.org/status/503", client_fd);
+					} else if (strcmp(path, "/post-test") == 0) {
+						http_post("http://localhost:8080");
+					} else if (strcmp(path, "/delete-test") == 0) {
+						http_delete("http://localhost:8080");
 					} else {
 						send_error_html(client_fd, "file/404.html", 404);
 					}

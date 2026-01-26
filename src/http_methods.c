@@ -5,7 +5,7 @@
 #include "../include/memory.h"
 #include "../include/send.h"
 
-static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+static size_t write_memory_callback(void *contents, size_t size, size_t nmemb, void *userp) {
 	size_t realsize = size * nmemb;
 	struct MemoryStruct *mem = (struct MemoryStruct *)userp;
 
@@ -37,7 +37,7 @@ void http_get(const char* url, int client_socket) {
 	curl_handle = curl_easy_init();
 	if (curl_handle) {
 		curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_memory_callback);
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 
 		res = curl_easy_perform(curl_handle);
@@ -59,6 +59,43 @@ void http_get(const char* url, int client_socket) {
 
 		curl_easy_cleanup(curl_handle);
 		free(chunk.memory);
+	}
+	curl_global_cleanup();
+}
+
+void http_post(const char* url) {
+	CURL *curl_handle;
+	CURLcode res;
+	char *post_data = "field1=value1&field2=value2";
+
+	curl_global_init(CURL_GLOBAL_DEFAULT);
+	curl_handle = curl_easy_init();
+	if (curl_handle) {
+		curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+		curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, post_data);
+		res = curl_easy_perform(curl_handle);
+		if (res != CURLE_OK) {
+			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		}
+		curl_easy_cleanup(curl_handle);
+	}
+	curl_global_cleanup();
+}
+
+void http_delete(const char* url) {
+	CURL *curl_handle;
+	CURLcode res;
+
+	curl_global_init(CURL_GLOBAL_DEFAULT);
+	curl_handle = curl_easy_init();
+	if (curl_handle) {
+		curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+		curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, "DELETE");
+		res = curl_easy_perform(curl_handle);
+		if (res != CURLE_OK) {
+			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		}
+		curl_easy_cleanup(curl_handle);
 	}
 	curl_global_cleanup();
 }
