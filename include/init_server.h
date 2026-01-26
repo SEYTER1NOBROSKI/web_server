@@ -1,1 +1,1 @@
-void setup_server();
+int setup_server();

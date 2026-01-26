@@ -7,11 +7,12 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 #include "../include/send.h"
+#include "../include/http_methods.h"
 
 #define PORT 8080
 #define MAX_CONNECTIONS 5
 
-void setup_server() {
+int setup_server() {
 	int server_socket, client_socket;
 	int epoll_fd, event_count;
 	struct epoll_event event, events[MAX_CONNECTIONS];
@@ -57,6 +58,7 @@ void setup_server() {
 	}
 
 	printf("Server listening on port %d\n", PORT);
+
 	while (1) {
 		event_count = epoll_wait(epoll_fd, events, MAX_CONNECTIONS, -1);
 		for (int i = 0; i < event_count; i++) {
@@ -75,7 +77,25 @@ void setup_server() {
 				if (bytes_read <= 0) {
 					close(client_fd);
 				} else {
-					send_html(client_fd, "src/index.html");
+					buffer[bytes_read] = '\0';
+					char method[16], path[256], protocol[16];
+					sscanf(buffer, "%s %s %s", method, path, protocol);
+					printf("Received request: %s %s %s\n", method, path, protocol);
+					if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) {
+						send_html(client_fd, "file/index.html");
+					} else if (strcmp(path, "/test-404") == 0) {
+						http_get("https://httpbin.org/status/404", client_fd);
+					} else if (strcmp(path, "/test-403") == 0) {
+						http_get("https://httpbin.org/status/403", client_fd);
+					} else if (strcmp(path, "/test-501") == 0) {
+						http_get("https://httpbin.org/status/501", client_fd);
+					} else if (strcmp(path, "/test-400") == 0) {
+						http_get("https://httpbin.org/status/400", client_fd);
+					} else if (strcmp(path, "/broken-link") == 0) {
+						http_get("https://httpbin.org/status/503", client_fd);
+					} else {
+						send_error_html(client_fd, "file/404.html", 404);
+					}
 					close(client_fd);
 				}
 			}
@@ -83,4 +103,5 @@ void setup_server() {
 	}
 
 	close(server_socket);
+	return client_socket;
 }

@@ -2,11 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <curl/curl.h>
-
-struct MemoryStruct {
-	char *memory;
-	size_t size;
-};
+#include "../include/memory.h"
+#include "../include/send.h"
 
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	size_t realsize = size * nmemb;
@@ -14,7 +11,7 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 
 	char *ptr = realloc(mem->memory, mem->size + realsize + 1);
 	if (!ptr) {
-		printf("not enough memory (realloc)n");
+		printf("not enough memory (realloc)\n");
 		return 0;
 	}
 
@@ -26,12 +23,14 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 	return realsize;
 }
 
-void http_get_example(const char* url) {
+void http_get(const char* url, int client_socket) {
 	CURL *curl_handle;
 	CURLcode res; // result code
 	struct MemoryStruct chunk;
+	long http_code = 0;
 
-	chunk.memory = malloc(1); 
+	chunk.memory = malloc(1);
+	chunk.memory[0] = '\0';
 	chunk.size = 0;
 
 	curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -45,8 +44,17 @@ void http_get_example(const char* url) {
 		if (res != CURLE_OK) {
 			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		} else {
-			printf("%lu bytes retrieved\n", (unsigned long)chunk.size);
-			printf("Data: %s\n", chunk.memory);
+			send(client_socket, chunk.memory, chunk.size, 0);
+			curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &http_code);
+			handle_client_response(client_socket, http_code, &chunk);
+			printf("HTTP Code: %ld\n", http_code);
+			printf("Size: %lu bytes\n", (unsigned long)chunk.size);
+
+			if (chunk.size > 0) {
+				printf("Data: %s\n", chunk.memory);
+			} else {
+				printf("Data: [EMPTY BODY]\n");
+			}
 		}
 
 		curl_easy_cleanup(curl_handle);
