@@ -150,3 +150,44 @@ void handle_file_upload(int client_socket, char *path, char *buffer, size_t byte
 	send(client_socket, msg, strlen(msg), 0);
 	printf("File saved successfully.\n");
 }
+
+void handle_file_download(int client_socket, char *path) {
+	char file_path[512];
+	snprintf(file_path, sizeof(file_path), ".%s", path);
+
+	FILE *fp = fopen(file_path, "rb");
+	if (!fp) {
+		printf("File open error");
+		char *msg = "HTTP/1.1 404 Not Found\r\n\r\nFile not found";
+		send(client_socket, msg, strlen(msg), 0);
+		return;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	long file_size = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	const char *filename = strrchr(file_path, '/');
+	if (!filename) filename++; // skip slash
+	else filename = "downloaded_file";
+
+	char headers[1024];
+	snprintf(headers, sizeof(headers),
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: application/octet-stream\r\n"
+		"Content-Disposition: attachment; filename=\"%s\"\r\n"
+		"Content-Length: %ld\r\n"
+		"\r\n",
+		filename, file_size);
+
+	send(client_socket, headers, strlen(headers), 0);
+
+	char buffer[4096];
+	size_t bytes_read;
+	while ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+		send(client_socket, buffer, bytes_read, 0);
+	}
+
+	fclose(fp);
+	printf("File %s sent to client for download.\n", filename);
+}

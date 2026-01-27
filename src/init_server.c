@@ -8,14 +8,19 @@
 #include <sys/epoll.h>
 #include "../include/send.h"
 #include "../include/http_methods.h"
+#include "../include/config.h"
 
-#define PORT 8080
-#define MAX_CONNECTIONS 5
+// #define PORT 8080
+// #define MAX_CONNECTIONS 5
 
 int setup_server() {
+
+	ServerConfig config;
+	load_config("config.json", &config);
+
 	int server_socket, client_socket;
 	int epoll_fd, event_count;
-	struct epoll_event event, events[MAX_CONNECTIONS];
+	struct epoll_event event, events[config.max_connections];
 	struct sockaddr_in server_addr, client_addr;
 	socklen_t client_len = sizeof(client_addr);
 
@@ -28,7 +33,7 @@ int setup_server() {
 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
-	server_addr.sin_port = htons(PORT);
+	server_addr.sin_port = htons(config.port);
 
 	if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
 		printf("Bind failed %d %s\n", errno, strerror(errno));
@@ -36,7 +41,7 @@ int setup_server() {
 		exit(EXIT_FAILURE);
 	}
 
-	if (listen(server_socket, MAX_CONNECTIONS) < 0) {
+	if (listen(server_socket, config.max_connections) < 0) {
 		printf("Listen failed %d %s\n", errno, strerror(errno));
 		close(server_socket);
 		exit(EXIT_FAILURE);
@@ -57,10 +62,10 @@ int setup_server() {
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Server listening on port %d\n", PORT);
+	printf("Server listening on port %d\n", config.port);
 
 	while (1) {
-		event_count = epoll_wait(epoll_fd, events, MAX_CONNECTIONS, -1);
+		event_count = epoll_wait(epoll_fd, events, config.max_connections, -1);
 		printf("Epoll wait returned %d\n", event_count);
 		for (int i = 0; i < event_count; i++) {
 			if (events[i].data.fd == server_socket) {
@@ -86,9 +91,7 @@ int setup_server() {
 						if (strcmp(method, "PUT") == 0) {
 							handle_file_upload(client_fd, path, buffer, bytes_read);
 						} else if (strcmp(method, "GET") == 0) {
-							char file_path[512];
-							snprintf(file_path, sizeof(file_path), ".%s", path);
-							send_html(client_fd, file_path);
+							handle_file_download(client_fd, path);
 						} else {
 							send_error_html(client_fd, "file/405.html", 405);
 						}
