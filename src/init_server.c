@@ -82,7 +82,17 @@ int setup_server() {
 					char method[16], path[256], protocol[16];
 					sscanf(buffer, "%s %s %s", method, path, protocol);
 					printf("Received request: %s %s %s\n", method, path, protocol);
-					if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) {
+					if (strncmp(path, "/storage", 8) == 0) {
+						if (strcmp(method, "PUT") == 0) {
+							handle_file_upload(client_fd, path, buffer, bytes_read);
+						} else if (strcmp(method, "GET") == 0) {
+							char file_path[512];
+							snprintf(file_path, sizeof(file_path), ".%s", path);
+							send_html(client_fd, file_path);
+						} else {
+							send_error_html(client_fd, "file/405.html", 405);
+						}
+					} else if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) {
 						send_html(client_fd, "file/index.html");
 					} else if (strcmp(path, "/test-404") == 0) {
 						http_get("https://httpbin.org/status/404", client_fd);
@@ -95,9 +105,11 @@ int setup_server() {
 					} else if (strcmp(path, "/broken-link") == 0) {
 						http_get("https://httpbin.org/status/503", client_fd);
 					} else if (strcmp(path, "/post-test") == 0) {
-						http_post("http://localhost:8080");
+						http_post("https://httpbin.org/post", client_fd);
 					} else if (strcmp(path, "/delete-test") == 0) {
-						http_delete("http://localhost:8080");
+						http_delete("https://httpbin.org/delete", client_fd);
+					} else if (strcmp(path, "/put-test") == 0) {
+						http_put("https://httpbin.org/put", "test_file.txt", client_fd);
 					} else {
 						send_error_html(client_fd, "file/404.html", 404);
 					}

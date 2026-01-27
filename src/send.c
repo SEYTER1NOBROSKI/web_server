@@ -94,3 +94,59 @@ void handle_client_response(int client_socket, long http_code, struct MemoryStru
 		send_html(client_socket, "file/204.html");
 	}
 }
+
+void handle_file_upload(int client_socket, char *path, char *buffer, size_t bytes_read) {
+	char file_path[512];
+	snprintf(file_path, sizeof(file_path), "%s", path + 1);
+	printf("Saving uploaded file to %s\n", file_path);
+
+	char *len_str = strstr(buffer, "Content-Length: ");
+	long content_length = 0;
+	if (len_str) {
+		content_length = strtol(len_str + 16, NULL, 10);
+	}
+	
+	if (content_length <= 0) {
+		char *msg = "HTTP/1.1 411 Length Required\r\n\r\nLength Required";
+		send(client_socket, msg, strlen(msg), 0);
+		return;
+	}
+
+	char *body_start = strstr(buffer, "\r\n\r\n");
+	if (!body_start) {
+		printf("Error: Could not find end of headers\n");
+		return;
+	}
+	body_start += 4;
+
+	long header_len = body_start - buffer;
+	long bytes_in_buffer = bytes_read - header_len;
+
+	FILE *fp = fopen(file_path, "wb");
+	if (!fp) {
+		perror("File open error");
+		char *msg = "HTTP/1.1 500 Internal Server Error\r\n\r\nCannot open file";
+		send(client_socket, msg, strlen(msg), 0);
+		return;
+	}
+
+	if (bytes_in_buffer > 0) {
+		fwrite(body_start, 1, bytes_in_buffer, fp);
+		content_length -= bytes_in_buffer;
+	}
+
+	char data_buffer[BUFFER_SIZE];
+	ssize_t received;
+	while (content_length > 0) {
+		received = recv(client_socket, data_buffer, sizeof(data_buffer), 0);
+		if (received <= 0) break;
+		fwrite(data_buffer, 1, received, fp);
+		content_length -= received;
+	}
+
+	fclose(fp);
+
+	char *msg = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
+	send(client_socket, msg, strlen(msg), 0);
+	printf("File saved successfully.\n");
+}
