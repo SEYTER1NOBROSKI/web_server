@@ -1,4 +1,4 @@
-# High-Performance Epoll Web Server in C
+# Web Server in C
 
 This is a lightweight HTTP web server implemented in C using the **epoll** Linux kernel system call for scalable I/O event notification. It is designed to handle multiple client connections efficiently using non-blocking I/O and supports features like file uploading, downloading, and configurable logging.
 
