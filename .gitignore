@@ -2,3 +2,5 @@ server
 test_file.txt
 .vscode/
 storage/
+server.log
+test_app

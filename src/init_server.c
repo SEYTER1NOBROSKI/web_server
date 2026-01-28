@@ -9,14 +9,21 @@
 #include "../include/send.h"
 #include "../include/http_methods.h"
 #include "../include/config.h"
+#include "../include/logger.h"
 
-// #define PORT 8080
-// #define MAX_CONNECTIONS 5
 
 int setup_server() {
 
 	ServerConfig config;
 	load_config("config.json", &config);
+
+	LogLevel log_level = config.debug_mode ? LOG_DEBUG : LOG_INFO;
+	logger_init(log_level, config.log_file);
+
+	log_msg(LOG_INFO, "Server configuration loaded: IP=%s, Port=%d, Max Connections=%d, Root Dir=%s, Log File=%s",
+		config.ip, config.port, config.max_connections, config.root_directory, config.log_file);
+	
+	log_msg(LOG_DEBUG, "Debug mode is ON. Detailed logs enabled.");
 
 	int server_socket, client_socket;
 	int epoll_fd, event_count;
@@ -27,7 +34,7 @@ int setup_server() {
 
 	server_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_socket < 0) {
-		printf("Socket creation failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Socket creation failed %d %s", errno, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -37,43 +44,43 @@ int setup_server() {
 
 	int optval = 1;
 	if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
-		printf("Set socket options failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Set socket options failed %d %s", errno, strerror(errno));
 		close(server_socket);
 		exit(EXIT_FAILURE);
 	}
 
 	if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-		printf("Bind failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Bind failed %d %s", errno, strerror(errno));
 		close(server_socket);
 		exit(EXIT_FAILURE);
 	}
 
 	if (listen(server_socket, config.max_connections) < 0) {
-		printf("Listen failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Listen failed %d %s", errno, strerror(errno));
 		close(server_socket);
 		exit(EXIT_FAILURE);
 	}
 
 	epoll_fd = epoll_create1(0);
 	if (epoll_fd <= 0) {
-		printf("Epoll create failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Epoll create failed %d %s", errno, strerror(errno));
 		close(server_socket);
 	}
 
 	event.events = EPOLLIN;
 	event.data.fd = server_socket;
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
-		printf("Epoll ctl failed %d %s\n", errno, strerror(errno));
+		log_msg(LOG_ERROR, "Epoll ctl failed %d %s", errno, strerror(errno));
 		close(server_socket);
 		close(epoll_fd);
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Server listening on port %d\n", config.port);
+	log_msg(LOG_INFO, "Server listening on port %d", config.port);
 
 	while (1) {
 		event_count = epoll_wait(epoll_fd, events, config.max_connections, -1);
-		printf("Epoll wait returned %d\n", event_count);
+		log_msg(LOG_DEBUG, "Epoll wait returned %d", event_count);
 		for (int i = 0; i < event_count; i++) {
 			if (events[i].data.fd == server_socket) {
 				client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
@@ -135,6 +142,7 @@ int setup_server() {
 		}
 	}
 
+	logger_close();
 	close(server_socket);
 	return client_socket;
 }

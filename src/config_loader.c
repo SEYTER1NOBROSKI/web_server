@@ -26,7 +26,7 @@ int load_config(const char *filename, ServerConfig *config) {
 	config->port = 8080;
 	config->max_connections = 5;
 	strcpy(config->root_directory, "storage");
-
+	strcpy(config->log_file, "server.log");
 	char *json_string = read_file(filename);
 	if (!json_string) {
 		printf("[WARN] Config file not found, using defaults.\n");
@@ -61,6 +61,12 @@ int load_config(const char *filename, ServerConfig *config) {
 	cJSON *root = cJSON_GetObjectItemCaseSensitive(json, "root_directory");
 	if (cJSON_IsString(root) && (root->valuestring != NULL)) {
 		strncpy(config->root_directory, root->valuestring, sizeof(config->root_directory) - 1);
+	}
+
+	cJSON *log_file = cJSON_GetObjectItemCaseSensitive(json, "log_file");
+	if (cJSON_IsString(log_file) && (log_file->valuestring != NULL)) {
+		strncpy(config->log_file, log_file->valuestring, sizeof(config->log_file) - 1);
+		config->log_file[sizeof(config->log_file) - 1] = '\0';
 	}
 
 	cJSON_Delete(json);

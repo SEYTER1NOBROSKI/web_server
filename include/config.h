@@ -6,6 +6,8 @@ typedef struct {
 	int port;
 	int max_connections;
 	char root_directory[256];
+	int debug_mode;
+	char log_file[256];
 } ServerConfig;
 
 int load_config(const char *filename, ServerConfig *config);
