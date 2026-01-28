@@ -35,6 +35,13 @@ int setup_server() {
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	server_addr.sin_port = htons(config.port);
 
+	int optval = 1;
+	if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+		printf("Set socket options failed %d %s\n", errno, strerror(errno));
+		close(server_socket);
+		exit(EXIT_FAILURE);
+	}
+
 	if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
 		printf("Bind failed %d %s\n", errno, strerror(errno));
 		close(server_socket);
@@ -84,9 +91,13 @@ int setup_server() {
 					close(client_fd);
 				} else {
 					buffer[bytes_read] = '\0';
+					int keep_alive = 1;
 					char method[16], path[256], protocol[16];
 					sscanf(buffer, "%s %s %s", method, path, protocol);
 					printf("Received request: %s %s %s\n", method, path, protocol);
+					if (strstr(buffer, "Connection: close")) {
+						keep_alive = 0;
+					}
 					if (strncmp(path, "/storage", 8) == 0) {
 						if (strcmp(method, "PUT") == 0) {
 							handle_file_upload(client_fd, path, buffer, bytes_read);
@@ -116,7 +127,9 @@ int setup_server() {
 					} else {
 						send_error_html(client_fd, "file/404.html", 404);
 					}
-					close(client_fd);
+					if (keep_alive == 0) {
+						close(client_fd);
+					}
 				}
 			}
 		}

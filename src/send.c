@@ -18,7 +18,16 @@ void send_html(int client_socket, const char *file_path) {
 
 	char buffer[BUFFER_SIZE];
 	size_t bytes_read;
-	char *http_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
+	fseek(html_file, 0, SEEK_END);
+	long content_length = ftell(html_file);
+	rewind(html_file);
+	char http_header[1024];
+	snprintf(http_header, sizeof(http_header),
+		"HTTP/1.1 200 OK\r\n"
+		"Content-Type: text/html\r\n"
+		"Content-Length: %ld\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n", content_length);
 	send(client_socket, http_header, strlen(http_header), 0);
 
 	while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, html_file)) > 0) {
@@ -28,48 +37,43 @@ void send_html(int client_socket, const char *file_path) {
 }
 
 void send_error_html(int client_socket, const char *file_path, long http_code) {
-	const char *http_header;
+	FILE *html_file = fopen(file_path, "rb");
 
-	switch (http_code) {
-		case 400:
-			http_header = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 403:
-			http_header = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 404:
-			http_header = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 501:
-			http_header = "HTTP/1.1 501 Not Implemented\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 503:
-			http_header = "HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 201:
-			http_header = "HTTP/1.1 201 Created\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		case 204:
-			http_header = "HTTP/1.1 204 No Content\r\nContent-Type: text/html\r\n\r\n";
-			break;
-		default:
-			http_header = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/html\r\n\r\n";
-			break;
-	}
-
-	send(client_socket, http_header, strlen(http_header), 0);
-
-	FILE *html_file = fopen(file_path, "r");
 	if (html_file == NULL) {
 		printf("ERROR: Could not open error file %s\n", file_path);
-		char *fallback_msg = "<h1>Error occurred, but error page is missing.</h1>";
+		const char *fallback_msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 13\r\nConnection: close\r\n\r\n404 Not Found";
 		send(client_socket, fallback_msg, strlen(fallback_msg), 0);
 		return;
 	}
 
+	fseek(html_file, 0, SEEK_END);
+	long content_length = ftell(html_file);
+	rewind(html_file);
+
+	char header_buffer[1024];
+	const char *status_text = "500 Internal Server Error";
+
+	switch (http_code) {
+		case 400: status_text = "400 Bad Request"; break;
+		case 403: status_text = "403 Forbidden"; break;
+		case 404: status_text = "404 Not Found"; break;
+		case 501: status_text = "501 Not Implemented"; break;
+		case 503: status_text = "503 Service Unavailable"; break;
+		case 201: status_text = "201 Created"; break;
+		case 204: status_text = "204 No Content"; break;
+	}
+
+	snprintf(header_buffer, sizeof(header_buffer),
+"HTTP/1.1 %s\r\n"
+		"Content-Type: text/html\r\n"
+		"Content-Length: %ld\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n", status_text, content_length);
+
+	send(client_socket, header_buffer, strlen(header_buffer), 0);
+
 	char buffer[BUFFER_SIZE];
 	size_t bytes_read;
-
 	while ((bytes_read = fread(buffer, 1, sizeof(buffer), html_file)) > 0) {
 		send(client_socket, buffer, bytes_read, 0);
 	}
@@ -107,7 +111,10 @@ void handle_file_upload(int client_socket, char *path, char *buffer, size_t byte
 	}
 	
 	if (content_length <= 0) {
-		char *msg = "HTTP/1.1 411 Length Required\r\n\r\nLength Required";
+		char *msg = "HTTP/1.1 411 Length Required\r\n"
+					"Content-Length: 15\r\n"
+					"Connection: close\r\n\r\n"
+					"Length Required";
 		send(client_socket, msg, strlen(msg), 0);
 		return;
 	}
@@ -125,7 +132,10 @@ void handle_file_upload(int client_socket, char *path, char *buffer, size_t byte
 	FILE *fp = fopen(file_path, "wb");
 	if (!fp) {
 		perror("File open error");
-		char *msg = "HTTP/1.1 500 Internal Server Error\r\n\r\nCannot open file";
+		char *msg = "HTTP/1.1 500 Internal Server Error\r\n"
+					"Content-Length: 16\r\n"
+					"Connection: keep-alive\r\n\r\n"
+					"Cannot open file";
 		send(client_socket, msg, strlen(msg), 0);
 		return;
 	}
@@ -146,7 +156,10 @@ void handle_file_upload(int client_socket, char *path, char *buffer, size_t byte
 
 	fclose(fp);
 
-	char *msg = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
+	char *msg = "HTTP/1.1 201 Created\r\n"
+		"Content-Length: 0\r\n"
+		"Connection: keep-alive\r\n"
+		"\r\n";
 	send(client_socket, msg, strlen(msg), 0);
 	printf("File saved successfully.\n");
 }
@@ -158,7 +171,11 @@ void handle_file_download(int client_socket, char *path) {
 	FILE *fp = fopen(file_path, "rb");
 	if (!fp) {
 		printf("File open error");
-		char *msg = "HTTP/1.1 404 Not Found\r\n\r\nFile not found";
+		char *msg = "HTTP/1.1 404 Not Found\r\n"
+					"Content-Length: 14\r\n"
+					"Connection: keep-alive\r\n"
+					"\r\n"
+					"File Not Found";
 		send(client_socket, msg, strlen(msg), 0);
 		return;
 	}
@@ -177,6 +194,7 @@ void handle_file_download(int client_socket, char *path) {
 		"Content-Type: application/octet-stream\r\n"
 		"Content-Disposition: attachment; filename=\"%s\"\r\n"
 		"Content-Length: %ld\r\n"
+		"Connection: keep-alive\r\n"
 		"\r\n",
 		filename, file_size);
 

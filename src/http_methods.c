@@ -47,14 +47,15 @@ void http_get(const char* url, int client_socket) {
 		if (res != CURLE_OK) {
 			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		} else {
-			send(client_socket, chunk.memory, chunk.size, 0);
 			curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &http_code);
 			handle_client_response(client_socket, http_code, &chunk);
+			send(client_socket, chunk.memory, chunk.size, 0);
 			printf("HTTP Code: %ld\n", http_code);
 			printf("Size: %lu bytes\n", (unsigned long)chunk.size);
 
 			if (chunk.size > 0) {
 				printf("Data: %s\n", chunk.memory);
+				send(client_socket, chunk.memory, chunk.size, 0);	
 			} else {
 				printf("Data: [EMPTY BODY]\n");
 			}
@@ -82,8 +83,22 @@ void http_post(const char* url, int client_socket) {
 			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		} else {
 			curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &http_code);
-			char success_msg[512];
-			send(client_socket, success_msg, snprintf(success_msg, sizeof(success_msg), "HTTP POST request completed with status code %d", http_code), 0);
+			char body[1024];
+			int body_len = snprintf(body, sizeof(body),
+		"Request processed via CURL.\nTarget URL: %s\nResponse Code: %d\n", 
+				url, http_code);
+
+			char header[1024];
+			snprintf(header, sizeof(header),
+		"HTTP/1.1 200 OK\r\n"
+				"Content-Type: text/plain\r\n"
+				"Content-Length: %d\r\n"
+				"Connection: keep-alive\r\n"
+				"\r\n", 
+				body_len);
+
+			send(client_socket, header, strlen(header), 0);
+			send(client_socket, body, body_len, 0);
 		}
 		curl_easy_cleanup(curl_handle);
 	}
@@ -105,10 +120,20 @@ void http_delete(const char* url, int client_socket) {
 			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		} else {
 			curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &http_code);
-			char success_msg[512];
-			send(client_socket, success_msg, snprintf(success_msg, sizeof(success_msg), "HTTP DELETE request completed with status code %ld", http_code), 0);
+			char body[1024];
+			int body_len = snprintf(body, sizeof(body),
+		"Request processed via CURL.\nTarget URL: %s\nResponse Code: %ld\n", url, http_code);
+			char header[1024];
+			snprintf(header, sizeof(header),
+				"HTTP/1.1 200 OK\r\n"
+				"Content-Type: text/plain\r\n"
+				"Content-Length: %d\r\n"
+				"Connection: keep-alive\r\n"
+				"\r\n", body_len);
+			send(client_socket, header, strlen(header), 0);
+			send(client_socket, body, body_len, 0);
+			curl_easy_cleanup(curl_handle);
 		}
-		curl_easy_cleanup(curl_handle);
 	}
 	curl_global_cleanup();
 }
@@ -166,10 +191,20 @@ void http_put(const char* url, const char* file_path, int client_socket) {
 		} else {
 			printf("File %s uploaded successfully.\n", file_path);
 			curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &http_code);
-			char success_msg[512];
-			send(client_socket, success_msg, snprintf(success_msg, sizeof(success_msg), "HTTP PUT request completed with status code %d", http_code), 0);
+			char body[1024];
+			int body_len = snprintf(body, sizeof(body),
+		"Request processed via CURL.\nTarget URL: %s\nResponse Code: %d\n", url, http_code);
+			char header[1024];
+			snprintf(header, sizeof(header),
+				"HTTP/1.1 200 OK\r\n"
+				"Content-Type: text/plain\r\n"
+				"Content-Length: %d\r\n"
+				"Connection: keep-alive\r\n"
+				"\r\n", body_len);
+			send(client_socket, header, strlen(header), 0);
+			send(client_socket, body, body_len, 0);
+			curl_easy_cleanup(curl_handle);
 		}
-
 		curl_easy_cleanup(curl_handle);
 	}
 	fclose(hd_src);
