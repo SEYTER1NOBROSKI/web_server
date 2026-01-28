@@ -4,3 +4,4 @@ test_file.txt
 storage/
 server.log
 test_app
+strace.log

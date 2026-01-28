@@ -1,7 +1,7 @@
 {
 	"server_ip": "0.0.0.0",
 	"port": 8080,
-	"max_connections": 1000,
+	"max_connections": 2000,
 	"root_directory": "storage",
 	"log_file": "server.log"
 }

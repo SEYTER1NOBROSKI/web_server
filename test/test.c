@@ -8,8 +8,8 @@
 
 #define TARGET_IP "127.0.0.1"
 #define TARGET_PORT 8080
-#define NUM_THREADS 500
-#define REQUESTS_PER_THREAD 10 
+#define NUM_THREADS 1000
+#define REQUESTS_PER_THREAD 200
 
 atomic_int success_count = 0;
 atomic_int fail_count = 0;
