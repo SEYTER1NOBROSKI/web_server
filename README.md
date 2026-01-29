@@ -31,14 +31,90 @@ This is a lightweight HTTP web server implemented in C using the **epoll** Linux
 * `config.json`: Configuration file for the server.
 * `Makefile`: Build script for compiling the server and the test application.
 
+## Sequence Diagram
+
+```mermaid
+sequenceDiagram
+	autonumber
+	actor Client as Client (Browser/Curl)
+	participant Main as Main / Config
+	participant Epoll as Server Loop<br>(init_server.c / epoll)
+	participant Logger as Logger<br>(logger.c)
+	participant Handler as Request Handler<br>(main loop logic)
+	participant Sender as File Sender<br>(send.c)
+	participant FS as File System
+
+	Note over Main, Epoll: Server Startup
+	Main->>Main: load_config("config.json")
+	Main->>Logger: logger_init(level, file)
+	Main->>Epoll: setup_server()
+	activate Epoll
+	Epoll->>Epoll: socket() -> bind() -> listen()
+	Epoll->>Epoll: epoll_create1()
+	Epoll->>Logger: log_msg("Server listening...")
+
+	Note over Epoll, FS: Event Loop (Keep-Alive)
+	loop while(1)
+		Epoll->>Epoll: epoll_wait()
+
+		alt New Connection
+			Client->>Epoll: Connect (SYN)
+			Epoll->>Epoll: accept()
+			Epoll->>Epoll: epoll_ctl(ADD client_fd)
+			Epoll->>Logger: log_msg("New client connected")
+
+		else Data Received (EPOLLIN)
+			Client->>Epoll: HTTP Request (GET /index.html)
+			Epoll->>Handler: recv(buffer)
+
+			alt bytes_read <= 0
+				Handler->>Epoll: close(client_fd)
+				Handler->>Logger: log_msg("Client disconnected")
+			else Valid Request
+				Handler->>Logger: log_msg("Received request...")
+				Handler->>Handler: parse_request(method, path)
+
+				alt Path == "/" or "/index.html"
+					Handler->>Sender: send_html("file/index.html")
+					activate Sender
+					Sender->>FS: fopen() -> fseek() (Calculate Size)
+					Sender->>Client: Send Headers (Content-Length, Keep-Alive)
+					Sender->>FS: fread() -> send() (Body)
+					Sender->>FS: fclose()
+					deactivate Sender
+
+				else Path == "/storage/..." (PUT)
+					Handler->>Sender: handle_file_upload()
+					activate Sender
+					Sender->>FS: fopen(wb) -> fwrite()
+					Sender->>Client: Send 201 Created
+					deactivate Sender
+
+				else Path == "/storage/..." (GET)
+					Handler->>Sender: handle_file_download()
+					activate Sender
+					Sender->>Client: Send File (Binary)
+					deactivate Sender
+
+				else Error (404)
+					Handler->>Sender: send_error_html(404)
+					Sender->>Client: Send 404 Page
+				end
+
+				Note right of Epoll: Connection remains OPEN<br>(Keep-Alive)<br>Wait for next event
+			end
+		end
+	end
+```
+
 ## Prerequisites
 
 To build and run this project, you need a Linux environment with the following installed:
 
-* **GCC** (GNU Compiler Collection)
-* **Make**
-* **libcurl** (for external HTTP requests)
-* **cJSON** (for parsing configuration)
+* **GCC** (GNU Compiler Collection) (ver. 13.3.0)
+* **Make** (ver. 4.3)
+* **libcurl** (for external HTTP requests ) (ver. 8.5.0)
+* **cJSON** (for parsing configuration) (ver. 1.7.17-1)
 
 **Install dependencies on Ubuntu/Debian:**
 ```bash
